@@ -252,10 +252,14 @@ def executar_extracao(cfg: dict, auth: dict, dt_inicio: str, dt_fim: str, log_cb
             except Exception:
                 pass
 
-        # Frete: busca o valor real no CSV do frontend (mais confiável que a API)
+        # Frete: usa a API como prioridade. Busca no CSV apenas se a API retornar 0
         frete_api = float(order.get("shipping_cost") or pag.get("shipping_cost", 0.0))
-        frete_csv = _buscar_frete_csv(session, csrf_token, o_id, client_id, log_cb)
-        frete = frete_csv if frete_csv > 0.0 else frete_api
+        
+        if frete_api == 0.0:
+            frete_csv = _buscar_frete_csv(session, csrf_token, o_id, client_id, log_cb)
+            frete = frete_csv if frete_csv > 0.0 else 0.0
+        else:
+            frete = frete_api
 
         # Ajuste financeiro: combina juros/desconto (diff) com frete
         tem_juros = diff > 0

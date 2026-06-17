@@ -156,9 +156,46 @@ _AZUL_MAX   = np.array([130, 255, 255])
 _AMAR_MIN   = np.array([ 25, 230,  50])
 _AMAR_MAX   = np.array([ 40, 157, 255])
 
+def get_config_db_path() -> str:
+    """Retorna o caminho do arquivo de configuração no %APPDATA%."""
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        appdata = os.path.expanduser("~")  # Fallback caso APPDATA não exista
+    dir_path = os.path.join(appdata, "Pluton")
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    return os.path.join(dir_path, "db_config.json")
 
+def carregar_config_bd() -> dict:
+    """Lê as configurações do banco. Retorna vazio se não existir."""
+    path = get_config_db_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Erro ao ler config do BD: {e}")
+    return {"server": "", "database": "", "user": "", "password": ""}
+
+def salvar_config_bd(config: dict):
+    """Salva o dicionário de configuração no JSON."""
+    with open(get_config_db_path(), "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4)
+        
 def conectar_banco():
-    conn_str = (""
+    config = carregar_config_bd()
+    
+    if not config.get("server") or not config.get("database"):
+        raise Exception("Banco de dados não configurado. Vá em Configurações de Banco.")
+
+    # Usando o driver padrão do SQL Server no Windows. 
+    # Caso use outro (ex: ODBC Driver 17), basta alterar abaixo.
+    conn_str = (
+        f"DRIVER={{SQL Server}};"
+        f"SERVER={config['server']};"
+        f"DATABASE={config['database']};"
+        f"UID={config['user']};"
+        f"PWD={config['password']}"
     )
     return pyodbc.connect(conn_str, timeout=5)
 
@@ -316,6 +353,7 @@ class NFeXMLMacro:
         tk.Label(hdr, text="F8 para pausar / retomar   |", bg=PANEL, fg=SUBTEXT, font=("Segoe UI", 9)).pack(side="right")
 
     def _build_left(self, parent):
+        # 1. Primeiro criamos a estrutura do painel e do scroll (o canvas e a variável 'left')
         wrapper = tk.Frame(parent, bg=BG)
         wrapper.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         wrapper.columnconfigure(0, weight=1)
@@ -328,7 +366,7 @@ class NFeXMLMacro:
         vsb.grid(row=0, column=1, sticky="ns")
         canvas.configure(yscrollcommand=vsb.set)
 
-        left = ttk.Frame(canvas)
+        left = ttk.Frame(canvas) # <--- A variável 'left' NASCE AQUI!
         left.columnconfigure(0, weight=1)
         left_win = canvas.create_window((0, 0), window=left, anchor="nw")
 
@@ -347,18 +385,26 @@ class NFeXMLMacro:
         canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
         canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll( 1, "units"))
 
-        # ── Arquivo de Pedidos (JSON) ──────────────────────────────────────────────
-        self._section(left, "🧾  Arquivo de Pedidos (JSON)", 0)
-        self.lbl_arquivo_json = self._info_row(left, "Arquivo JSON principal:", "Nenhum selecionado", 1)
-        self._btn(left, "Selecionar Arquivo .json", self.selecionar_arquivo_json, 2)
+        # 2. AGORA SIM, com o 'left' criado, colocamos os itens dentro dele!
 
-        ttk.Separator(left, orient="horizontal").grid(row=3, column=0, sticky="ew", pady=10)
+        # ── Configurações de Sistema ───────────────────────────────────────────────
+        self._section(left, "⚙️  Configurações de Sistema", 0)
+        self._btn(left, "Configurar Banco de Dados", self.abrir_config_bd, 1, color=BTN_BG, text_color=ACCENT)
+        
+        ttk.Separator(left, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=10)
+
+        # ── Arquivo de Pedidos (JSON) ──────────────────────────────────────────────
+        self._section(left, "🧾  Arquivo de Pedidos (JSON)", 3)
+        self.lbl_arquivo_json = self._info_row(left, "Arquivo JSON principal:", "Nenhum selecionado", 4)
+        self._btn(left, "Selecionar Arquivo .json", self.selecionar_arquivo_json, 5)
+
+        ttk.Separator(left, orient="horizontal").grid(row=6, column=0, sticky="ew", pady=10)
 
         # ── Posições de clique ───────────────────────────────────────────────
-        self._section(left, "🖱  Posições de clique", 4)
+        self._section(left, "🖱  Posições de clique", 7)
 
         chk = ttk.Checkbutton(left, text="Usar coordenadas padrão", variable=self.usar_padrao)
-        chk.grid(row=5, column=0, sticky="w", pady=(0, 6))
+        chk.grid(row=8, column=0, sticky="w", pady=(0, 6))
 
         campos = [
             ("importar_xml",    "Botão Importar XML (tela 1)"),
@@ -377,7 +423,7 @@ class NFeXMLMacro:
         ]
 
         container = ttk.Frame(left, style="Panel.TFrame", padding=10)
-        container.grid(row=6, column=0, sticky="ew")
+        container.grid(row=9, column=0, sticky="ew")
         container.columnconfigure(1, weight=1)
         container.columnconfigure(3, weight=1)
 
@@ -397,12 +443,12 @@ class NFeXMLMacro:
             btn.bind("<Enter>", lambda e, b=btn: b.config(bg=BTN_HOV))
             btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BTN_BG))
 
-        ttk.Separator(left, orient="horizontal").grid(row=7, column=0, sticky="ew", pady=10)
+        ttk.Separator(left, orient="horizontal").grid(row=10, column=0, sticky="ew", pady=10)
 
         # ── Configurações de tempo ─────────────────────────────────────────────
-        self._section(left, "⏱  Tempos (segundos)", 8)
+        self._section(left, "⏱  Tempos (segundos)", 11)
         delay_frame = ttk.Frame(left, style="Panel.TFrame", padding=10)
-        delay_frame.grid(row=9, column=0, sticky="ew")
+        delay_frame.grid(row=12, column=0, sticky="ew")
         delay_frame.columnconfigure(1, weight=1)
 
         for i, (label, var) in enumerate([
@@ -413,34 +459,34 @@ class NFeXMLMacro:
             ttk.Label(delay_frame, text=label, style="Sub.TLabel").grid(row=i, column=0, sticky="w", pady=2)
             ttk.Entry(delay_frame, textvariable=var, width=6).grid(row=i, column=1, sticky="w", padx=8)
 
-        ttk.Separator(left, orient="horizontal").grid(row=10, column=0, sticky="ew", pady=10)
+        ttk.Separator(left, orient="horizontal").grid(row=13, column=0, sticky="ew", pady=10)
 
         # ── Vencimento automático ──────────────────────────────────────────────
-        self._section(left, "📅  Vencimento automático", 11)
+        self._section(left, "📅  Vencimento automático", 14)
         venc_frame = ttk.Frame(left, style="Panel.TFrame", padding=10)
-        venc_frame.grid(row=12, column=0, sticky="ew")
+        venc_frame.grid(row=15, column=0, sticky="ew")
         venc_frame.columnconfigure(0, weight=1)
         ttk.Label(venc_frame, style="Sub.TLabel", justify="left",
                   text="Vencimento = dia 20 do mês seguinte à data_compra do pedido.").grid(row=0, column=0, sticky="w")
 
-        ttk.Separator(left, orient="horizontal").grid(row=13, column=0, sticky="ew", pady=10)
+        ttk.Separator(left, orient="horizontal").grid(row=16, column=0, sticky="ew", pady=10)
 
         # ── Botões de ação ─────────────────────────────────────────────────────
         self._btn(left, "🔍  Pré-visualizar XMLs (sem executar)",
                   lambda: threading.Thread(target=self.previsualizar, daemon=True).start(),
-                  14, color=GREEN_BTN, text_color="white")
+                  17, color=GREEN_BTN, text_color="white")
 
         self._btn(left, "🎯  Preview da área de bolinhas",
                   self.mostrar_preview_bolinhas,
-                  15, color=BTN_BG, text_color=ACCENT)
+                  18, color=BTN_BG, text_color=ACCENT)
 
         self._btn(left, "▶  Executar importação em massa",
                   lambda: threading.Thread(target=self.executar_macro, daemon=True).start(),
-                  16, color=ACCENT, text_color="white", big=True)
+                  19, color=ACCENT, text_color="white", big=True)
 
         # ── Estatísticas ───────────────────────────────────────────────────────
         stats_frame = ttk.Frame(left, style="Panel.TFrame", padding=10)
-        stats_frame.grid(row=17, column=0, sticky="ew", pady=(10, 0))
+        stats_frame.grid(row=20, column=0, sticky="ew", pady=(10, 0))
         stats_frame.columnconfigure((0, 1, 2), weight=1)
 
         for col, (label, color, attr) in enumerate([
@@ -455,6 +501,81 @@ class NFeXMLMacro:
             lbl.pack()
             setattr(self, attr, lbl)
 
+    def abrir_config_bd(self):
+        """Abre uma janela modal para configurar a conexão com o banco de dados."""
+        win = tk.Toplevel(self.root)
+        win.title("Configurações do Banco de Dados")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.grab_set()  # Bloqueia a janela principal enquanto esta estiver aberta
+        
+        # Centralizar na tela
+        win.geometry(f"350x380+{self.root.winfo_rootx() + 100}+{self.root.winfo_rooty() + 100}")
+
+        ttk.Label(win, text="⚙️  Conexão SQL Server", style="Head.TLabel").pack(pady=(15, 10))
+
+        config_atual = carregar_config_bd()
+        entradas = {}
+
+        campos = [
+            ("Servidor (IP/Hostname)", "server"),
+            ("Nome do Banco", "database"),
+            ("Usuário", "user"),
+            ("Senha", "password")
+        ]
+
+        frame_form = tk.Frame(win, bg=BG)
+        frame_form.pack(fill="both", expand=True, padx=20)
+
+        for label_text, key in campos:
+            ttk.Label(frame_form, text=label_text, style="Sub.TLabel").pack(anchor="w", pady=(5, 2))
+            var = tk.StringVar(value=config_atual.get(key, ""))
+            # Se for senha, oculta os caracteres
+            show_char = "*" if key == "password" else ""
+            ent = ttk.Entry(frame_form, textvariable=var, show=show_char, font=("Segoe UI", 10))
+            ent.pack(fill="x", ipady=3)
+            entradas[key] = var
+
+        lbl_status = tk.Label(win, text="", bg=BG, fg=SUBTEXT, font=("Segoe UI", 9))
+        lbl_status.pack(pady=5)
+
+        def testar_conexao():
+            lbl_status.config(text="Testando conexão...", fg=WARNING)
+            win.update()
+            
+            # Constrói string temporária para teste
+            conn_str = (
+                f"DRIVER={{SQL Server}};"
+                f"SERVER={entradas['server'].get()};"
+                f"DATABASE={entradas['database'].get()};"
+                f"UID={entradas['user'].get()};"
+                f"PWD={entradas['password'].get()}"
+            )
+            try:
+                conn = pyodbc.connect(conn_str, timeout=3)
+                conn.close()
+                lbl_status.config(text="✅ Conexão bem-sucedida!", fg=SUCCESS)
+            except Exception as e:
+                lbl_status.config(text="❌ Falha na conexão.", fg=DANGER)
+                self._log(f"Erro no teste de banco: {str(e)}", "error")
+
+        def salvar():
+            novos_dados = {k: v.get() for k, v in entradas.items()}
+            salvar_config_bd(novos_dados)
+            self._log("✅ Configurações de banco de dados atualizadas com sucesso.", "ok")
+            win.destroy()
+
+        frame_btns = tk.Frame(win, bg=BG)
+        frame_btns.pack(fill="x", padx=20, pady=15)
+        
+        btn_testar = tk.Button(frame_btns, text="Testar Conexão", bg=BTN_BG, fg=TEXT, relief="flat", cursor="hand2", command=testar_conexao)
+        btn_testar.pack(side="left", fill="x", expand=True, padx=(0, 5), ipady=5)
+        btn_testar.bind("<Enter>", lambda e: btn_testar.config(bg=BTN_HOV))
+        btn_testar.bind("<Leave>", lambda e: btn_testar.config(bg=BTN_BG))
+
+        btn_salvar = tk.Button(frame_btns, text="Salvar", bg=ACCENT, fg="white", relief="flat", cursor="hand2", command=salvar)
+        btn_salvar.pack(side="right", fill="x", expand=True, padx=(5, 0), ipady=5)
+        
     def _build_right(self, parent):
         right = ttk.Frame(parent)
         right.grid(row=0, column=1, sticky="nsew")

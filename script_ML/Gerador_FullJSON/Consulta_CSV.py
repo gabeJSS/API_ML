@@ -12,8 +12,8 @@ from pathlib import Path
 
 # ─── EDITE AQUI ───────────────────────────────────────────────────────────────
 COOKIE_PATH = Path("cookie.json")   # mesmo caminho que o core.py usa
-ORDER_ID    = ""    # pedido que deveria ter frete
-CLIENT_ID   = ""    # seu client.id (o que aparece no curl)
+ORDER_ID    = "2000016378311952"    # pedido que deveria ter frete
+CLIENT_ID   = "7784120770635111"    # seu client.id (o que aparece no curl)
 # ──────────────────────────────────────────────────────────────────────────────
 
 def carregar_sessao():

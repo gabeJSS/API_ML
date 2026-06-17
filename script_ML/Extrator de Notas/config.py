@@ -16,8 +16,8 @@ COOKIE_PATH = get_appdata_dir() / "cookie.json"
 
 # ── Arquivos de Dados (Pasta do Script)
 BASE_DIR     = Path(__file__).parent
-JSON_EXTRATO = BASE_DIR / "integracao_erp.json"
-JSON_ENRIQ   = BASE_DIR / "integracao_erp_enriquecido.json"
-JSON_FINAL   = BASE_DIR / "integracao_erp_final.json"
-EXCEL_CLASS  = BASE_DIR / "classificacao.xlsx"
+JSON_EXTRATO = BASE_DIR / "../integracao_erp.json"
+JSON_ENRIQ   = BASE_DIR / "../integracao_erp_enriquecido.json"
+JSON_FINAL   = BASE_DIR / "../integracao_erp_final.json"
+EXCEL_CLASS  = BASE_DIR / "../classificacao.xlsx"
 XML_DIR      = BASE_DIR / "../xmls_nfe"
